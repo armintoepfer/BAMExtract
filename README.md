@@ -1,4 +1,4 @@
 BAMExtract
 ==========
 
-Extracts regions from a bam file and exports as in sam format
+Extracts regions from a BAM file and exports in SAM format
