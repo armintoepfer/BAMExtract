@@ -80,14 +80,14 @@ public class Start {
             } catch (CmdLineException e) {
                 System.err.println(e.getMessage());
                 System.err.println("USAGE:");
-                System.err.println("java -jar FastaSubtyper.jar options...\n");
+                System.err.println("java -jar bamextract.jar options...\n");
                 System.err.println(" ------------------------");
                 System.err.println(" === GENERAL options ===");
-                System.err.println("  -i PATH\t\t: Path to the input file (FASTA format) [REQUIRED]");
-                System.err.println("  -header STRING\t: Start of header file");
+                System.err.println("  -i PATH\t\t: Path to the input file (BAM format) [REQUIRED]");
+                System.err.println("  -r STRING\t: Regions in format start-end,start2-end2");
                 System.err.println(" ------------------------");
                 System.err.println(" === EXAMPLES ===");
-                System.err.println("  java -jar FastaSubtyper.jar -i genomes.fasta -header \">B\" ");
+                System.err.println("  java -jar bamextract.jar -i reads.bam -r 320-600,1220-4000 ");
                 System.err.println(" ------------------------");
             }
         } catch (OutOfMemoryError e) {
