@@ -19,68 +19,73 @@ public class Read {
 
     public Read cut(int fromW, int toW) {
         int readLength = sequence.length();
+        try {
+            if (toW < start || fromW >= start + readLength) {
+                return null;
+            }
 
-        if (toW < start || fromW >= start + readLength) {
-            return null;
-        }
-
-        if (fromW >= start && start + readLength <= toW) {
-            Read r = new Read();
-            int from = fromW - start;
-            r.start = fromW;
-            //r.quality = this.quality.substring(from);
-            r.sequence = this.sequence.substring(from);
-            r.id = id;
-            r.ref = ref;
-            return r;
-        }
-
-        if (fromW >= start && start + readLength > toW) {
-            int from = -1;
-            int to = -1;
-            try {
+            if (fromW >= start && start + readLength <= toW) {
                 Read r = new Read();
+                int from = fromW - start;
                 r.start = fromW;
-                from = fromW - start;
-                to = from + toW - fromW;
+                //r.quality = this.quality.substring(from);
+                r.sequence = this.sequence.substring(from);
+                r.id = id;
+                r.ref = ref;
+                return r;
+            }
+
+            if (fromW >= start && start + readLength > toW) {
+                int from = -1;
+                int to = -1;
+                try {
+                    Read r = new Read();
+                    r.start = fromW;
+                    from = fromW - start;
+                    to = from + toW - fromW;
+                    //r.quality = this.quality.substring(from, to);
+                    r.sequence = this.sequence.substring(from, to);
+                    r.id = id;
+                    r.ref = ref;
+                    return r;
+                } catch (StringIndexOutOfBoundsException e) {
+                    System.err.println("fromW: " + fromW + "\ttoW: " + toW);
+                    System.err.println("from: " + from + "\ttoW: " + to);
+                    System.err.println("start: " + start + "\tlength: " + readLength + "\tto:" + (start + readLength));
+                    System.exit(0);
+                }
+            }
+            if (fromW < start && start + readLength <= toW) {
+                return this;
+            }
+            if (fromW < start && start + fromW + readLength <= toW) {
+                return this;
+            }
+            if (fromW < start && fromW + readLength <= toW) {
+                Read r = new Read();
+                r.start = start;
+                int from = 0;
+                int to = toW - start;
+//            int to = readLength - (start - fromW);
                 //r.quality = this.quality.substring(from, to);
                 r.sequence = this.sequence.substring(from, to);
                 r.id = id;
                 r.ref = ref;
                 return r;
-            } catch (StringIndexOutOfBoundsException e) {
-                System.err.println("fromW: " + fromW + "\ttoW: " + toW);
-                System.err.println("from: " + from + "\ttoW: " + to);
-                System.err.println("start: " + start + "\tlength: " + readLength + "\tto:" + (start + readLength));
-                System.exit(0);
             }
-        }
-
-        if (fromW < start && start + fromW + readLength <= toW) {
-            return this;
-        }
-        if (fromW < start && fromW + readLength <= toW) {
-            Read r = new Read();
-            r.start = start;
-            int from = 0;
-            int to = toW - start;
-//            int to = readLength - (start - fromW);
-            //r.quality = this.quality.substring(from, to);
-            r.sequence = this.sequence.substring(from, to);
-            r.id = id;
-            r.ref = ref;
-            return r;
-        }
-        if (fromW < start && fromW + readLength > toW) {
-            Read r = new Read();
-            r.start = start;
-            int from = 0;
-            int to = toW - start;
-            //r.quality = this.quality.substring(from, to);
-            r.sequence = this.sequence.substring(from, to);
-            r.id = id;
-            r.ref = ref;
-            return r;
+            if (fromW < start && fromW + readLength > toW) {
+                Read r = new Read();
+                r.start = start;
+                int from = 0;
+                int to = toW - start;
+                //r.quality = this.quality.substring(from, to);
+                r.sequence = this.sequence.substring(from, to);
+                r.id = id;
+                r.ref = ref;
+                return r;
+            }
+        } catch (StringIndexOutOfBoundsException e) {
+            System.out.println(e);
         }
         return null;
     }
@@ -138,9 +143,9 @@ public class Read {
 
     public String sam() {
         String cigarTmp = null;
-        try { 
+        try {
             cigarTmp = getCigars();
-        } catch(IllegalStateException e) {
+        } catch (IllegalStateException e) {
             return "";
         }
         StringBuilder samSB = new StringBuilder();
