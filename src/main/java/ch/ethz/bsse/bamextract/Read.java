@@ -17,77 +17,55 @@ public class Read {
     public String id;
     public String ref;
 
-    public Read cut(int fromW, int toW) {
-        int readLength = sequence.length();
-        try {
-            if (toW < start || fromW >= start + readLength) {
+    public Read() {
+    }
+
+    public Read(String sequence, String quality, int start, String id, String ref) {
+        this.sequence = sequence;
+        this.quality = quality;
+        this.start = start;
+        this.id = id;
+        this.ref = ref;
+    }
+
+    public Read cut(int fromW, int toW, int alignmentStart, int alignmentEnd) {
+        char[] x = new char[alignmentEnd - alignmentStart];
+        char[] q = new char[alignmentEnd - alignmentStart];
+
+        int begin = start - alignmentStart;
+        for (int i = 0; i < sequence.length(); i++) {
+            char c = sequence.charAt(i);
+            if (c == 'N') {
                 return null;
             }
+            x[begin + i] = c;
+            q[begin + i] = quality.charAt(i);
+        }
 
-            if (fromW >= start && start + readLength <= toW) {
-                Read r = new Read();
-                int from = fromW - start;
-                r.start = fromW;
-                //r.quality = this.quality.substring(from);
-                r.sequence = this.sequence.substring(from);
-                r.id = id;
-                r.ref = ref;
-                return r;
-            }
+        StringBuilder x_sb = new StringBuilder();
+        StringBuilder q_sb = new StringBuilder();
+        boolean pre_offset = true;
 
-            if (fromW >= start && start + readLength > toW) {
-                int from = -1;
-                int to = -1;
-                try {
-                    Read r = new Read();
-                    r.start = fromW;
-                    from = fromW - start;
-                    to = from + toW - fromW;
-                    //r.quality = this.quality.substring(from, to);
-                    r.sequence = this.sequence.substring(from, to);
-                    r.id = id;
-                    r.ref = ref;
-                    return r;
-                } catch (StringIndexOutOfBoundsException e) {
-                    System.err.println("fromW: " + fromW + "\ttoW: " + toW);
-                    System.err.println("from: " + from + "\ttoW: " + to);
-                    System.err.println("start: " + start + "\tlength: " + readLength + "\tto:" + (start + readLength));
-                    System.exit(0);
+        int start_new = fromW;
+        for (int i = fromW; i < toW; i++) {
+            char c_x = x[i - alignmentStart];
+            char c_q = q[i - alignmentStart];
+            if (c_x != 0) {
+                pre_offset = false;
+                x_sb.append(c_x);
+                q_sb.append(c_q);
+            } else {
+                if (pre_offset) {
+                    start_new++;
                 }
             }
-            if (fromW < start && start + readLength <= toW) {
-                return this;
-            }
-            if (fromW < start && start + fromW + readLength <= toW) {
-                return this;
-            }
-            if (fromW < start && fromW + readLength <= toW) {
-                Read r = new Read();
-                r.start = start;
-                int from = 0;
-                int to = toW - start;
-//            int to = readLength - (start - fromW);
-                //r.quality = this.quality.substring(from, to);
-                r.sequence = this.sequence.substring(from, to);
-                r.id = id;
-                r.ref = ref;
-                return r;
-            }
-            if (fromW < start && fromW + readLength > toW) {
-                Read r = new Read();
-                r.start = start;
-                int from = 0;
-                int to = toW - start;
-                //r.quality = this.quality.substring(from, to);
-                r.sequence = this.sequence.substring(from, to);
-                r.id = id;
-                r.ref = ref;
-                return r;
-            }
-        } catch (StringIndexOutOfBoundsException e) {
-            System.out.println(e);
         }
-        return null;
+
+        if (x_sb.toString().length() > 0) {
+            return new Read(x_sb.toString(), q_sb.toString(), start_new, id, ref);
+        } else {
+            return null;
+        }
     }
 
     public String getCigars() {
@@ -159,7 +137,11 @@ public class Read {
         samSB.append(0).append("\t");
         samSB.append(0).append("\t");
         samSB.append(getSequence()).append("\t");
-        samSB.append("*");
+        if (quality != null && !quality.isEmpty()) {
+            samSB.append(getQuality());
+        } else {
+            samSB.append("*");
+        }
         samSB.append("\n");
         return samSB.toString();
     }
@@ -172,6 +154,22 @@ public class Read {
             }
         }
         return sb.toString();
+    }
+
+    public String getQuality() {
+        StringBuilder sb = new StringBuilder();
+        char[] seq = sequence.toCharArray();
+        char[] qual = quality.toCharArray();
+        for (int i = 0; i < seq.length; i++) {
+            if (seq[i] != '-') {
+                sb.append(qual[i]);
+            }
+        }
+        return sb.toString();
+    }
+
+    public int getLength() {
+        return sequence.length();
     }
 
     public void setSequence(String sequence) {

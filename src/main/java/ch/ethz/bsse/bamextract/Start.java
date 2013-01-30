@@ -1,5 +1,6 @@
 package ch.ethz.bsse.bamextract;
 
+import com.google.common.collect.Lists;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
@@ -8,12 +9,14 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import net.sf.samtools.AlignmentBlock;
-import net.sf.samtools.CigarElement;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import net.sf.samtools.SAMFileReader;
 import net.sf.samtools.SAMRecord;
 import net.sf.samtools.SAMSequenceRecord;
@@ -33,8 +36,10 @@ public class Start {
     private String output;
     @Option(name = "-r")
     private String region;
+    @Option(name = "-l")
+    private int minlength = 0;
     private List<Header> headerList = new LinkedList<>();
-    private List<Read> readList = new LinkedList<>();
+    private List<Read> readList = null;
     private List<Integer[]> regionList = new LinkedList<>();
     private static final BlockingQueue<Runnable> blockingQueue = new ArrayBlockingQueue<>(Runtime.getRuntime().availableProcessors() - 1);
     private static final RejectedExecutionHandler rejectedExecutionHandler = new ThreadPoolExecutor.CallerRunsPolicy();
@@ -73,9 +78,23 @@ public class Start {
                     new File(this.output).mkdirs();
                 }
                 parseBAMSAM();
-                splitRegion();
-                extractReads();
 
+                int start = Integer.MAX_VALUE;
+                int end = Integer.MIN_VALUE;
+                int counter = 0;
+                for (Read r : this.readList) {
+                    start = Math.min(start, r.start);
+                    end = Math.max(end, r.start + r.getLength());
+
+                    StatusUpdate.print("Index find:\t" + counter++);
+                }
+
+                StatusUpdate.println("Index find:\t" + counter++);
+                System.out.println("START:\t" + start);
+                System.out.println("END:\t" + end);
+
+                splitRegion();
+                extractReads(start, end, minlength);
 
             } catch (CmdLineException e) {
                 System.err.println(e.getMessage());
@@ -95,12 +114,12 @@ public class Start {
         }
     }
 
-    private void extractReads() {
+    private void extractReads(int alignmentStart, int alignmentStop, int minlength) {
         for (Integer[] ii : regionList) {
             List<Read> reads = new LinkedList<>();
             for (Read r : readList) {
-                Read readCut = r.cut(ii[0], ii[1]);
-                if (readCut != null) {
+                Read readCut = r.cut(ii[0], ii[1], alignmentStart, alignmentStop);
+                if (readCut != null && readCut.getSequence().length() >= minlength) {
                     reads.add(readCut);
                 }
             }
@@ -125,60 +144,28 @@ public class Start {
             h.length = ssr.getSequenceLength();
             headerList.add(h);
         }
+        int counter = 0;
+//        this.readList = Lists.newArrayListWithCapacity(sfr.)
+        List<Future<Read>> readFutures = Lists.newArrayListWithExpectedSize(200_000);
         for (final SAMRecord samRecord : sfr) {
-            List<AlignmentBlock> alignmentBlocks = samRecord.getAlignmentBlocks();
-            if (alignmentBlocks.isEmpty()) {
-                continue;
-            }
-            int refStart = alignmentBlocks.get(0).getReferenceStart() + alignmentBlocks.get(0).getReadStart() - 1;
-            StringBuilder readSB = new StringBuilder();
-            int readStart = 0;
-            for (CigarElement c : samRecord.getCigar().getCigarElements()) {
-                switch (c.getOperator()) {
-                    case X:
-                    case EQ:
-                    case M:
-                        for (int i = 0; i < c.getLength(); i++) {
-                            readSB.append(samRecord.getReadString().charAt(readStart++));
-                        }
-                        break;
-                    case I:
-                        for (int i = 0; i < c.getLength(); i++) {
-                            readStart++;
-                        }
-                        break;
-                    case D:
-                        for (int i = 0; i < c.getLength(); i++) {
-                            readSB.append("-");
-                        }
-                        break;
-                    case S:
-                        for (int i = 0; i < c.getLength(); i++) {
-                            readStart++;
-                        }
-                        break;
-                    case H:
-                        break;
-                    case P:
-                        System.out.println("P");
-                        System.exit(9);
-                        break;
-                    case N:
-                        System.out.println("N");
-                        System.exit(9);
-                        break;
-                    default:
-                        break;
-                }
-            }
-            Read r = new Read();
-            r.id = samRecord.getReadName();
-            r.ref = samRecord.getReferenceName();
-            r.setSequence(readSB.toString());
-            r.start = refStart;
-            r.quality = samRecord.getBaseQualityString();
-            readList.add(r);
+            readFutures.add(executor.submit(new SFRComputing(samRecord)));
+            StatusUpdate.print("Parsing:\t" + counter++);
         }
+        StatusUpdate.println("Parsing:\t" + counter);
+        this.readList = Lists.newArrayListWithCapacity(readFutures.size());
+        counter = 0;
+        for (Future<Read> future : readFutures) {
+            try {
+                Read r = future.get();
+                if (r != null) {
+                    this.readList.add(r);
+                }
+                StatusUpdate.print("Mapped:\t" + counter++);
+            } catch (InterruptedException | ExecutionException ex) {
+                Logger.getLogger(Start.class.getName()).log(Level.SEVERE, null, ex);
+            }
+        }
+        StatusUpdate.println("Mapped:\t" + counter++);
     }
 
     public void saveSAM(List<Read> reads, int from, int to) {
