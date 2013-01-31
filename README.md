@@ -3,6 +3,8 @@ BAMExtract
 
 Extracts regions from a BAM file and exports in SAM format
 
+Please get the latest binary version at https://sourceforge.net/projects/bamextract/
+
 USAGE:
 ```
 java -jar bamextract.jar options...
